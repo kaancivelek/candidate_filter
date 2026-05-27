@@ -27,6 +27,8 @@ static_root/
 cv_results.json
 cv_errors.json
 *.txt
+!requirements.txt
+!parsing/utils/skills_db.txt
 
 # OS generated files
 .DS_Store
