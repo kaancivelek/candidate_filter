@@ -1,0 +1,159 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard | Intelligent Cloud HR{% endblock %}
+
+{% block page_title %}Overview Dashboard{% endblock %}
+
+{% block content %}
+<style>
+    /* ... (تنسيقات البطاقات العلوية كما هي) ... */
+    .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; margin-bottom: 30px; }
+    .stat-card { background-color: var(--surface-color); padding: 24px; border-radius: 12px; border: 1px solid var(--border-color); display: flex; align-items: center; gap: 20px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02); transition: transform 0.2s; }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-icon { width: 60px; height: 60px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+    .stat-icon .material-symbols-outlined { font-size: 32px; }
+    .icon-blue { background-color: #eff6ff; color: #3b82f6; }
+    .icon-green { background-color: #f0fdf4; color: #10b981; }
+    .icon-purple { background-color: #faf5ff; color: #a855f7; }
+    .icon-orange { background-color: #fff7ed; color: #f97316; }
+    .stat-details h3 { font-size: 1.8rem; color: var(--primary-color); margin-bottom: 4px; }
+    .stat-details p { color: var(--text-light); font-size: 0.9rem; font-weight: 500; }
+    .dashboard-row { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+    .section-header h2 { font-size: 1.2rem; color: var(--primary-color); }
+    .btn-text { color: var(--secondary-color); text-decoration: none; font-size: 0.9rem; font-weight: 600; }
+    .btn-text:hover { text-decoration: underline; }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .data-table th { background-color: #f8fafc; color: var(--text-light); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+    
+    /* === التعديلات الجديدة لجعل الصف قابلاً للنقر === */
+    .clickable-row {
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .clickable-row:hover {
+        background-color: #f1f5f9; /* تغيير لون الخلفية بشكل أوضح عند التحويم */
+    }
+    
+    .badge { padding: 6px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 600; }
+    .badge-active { background-color: #d1fae5; color: #059669; }
+    .badge-closed { background-color: #fee2e2; color: #dc2626; }
+    .activity-list { list-style: none; }
+    .activity-item { display: flex; gap: 15px; padding-bottom: 16px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+    .activity-item:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
+    .activity-icon { width: 40px; height: 40px; background-color: #f1f5f9; color: var(--text-main); border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .activity-text p { font-size: 0.9rem; color: var(--text-main); margin-bottom: 4px; }
+    .activity-text span { font-size: 0.8rem; color: var(--text-light); }
+</style>
+
+<div class="stats-grid">
+    <div class="stat-card">
+        <div class="stat-icon icon-blue">
+            <span class="material-symbols-outlined">work</span>
+        </div>
+        <div class="stat-details">
+            <h3>{{ active_jobs_count }}</h3>
+            <p>Active Job Postings</p>
+        </div>
+    </div>
+    
+    <div class="stat-card">
+        <div class="stat-icon icon-purple">
+            <span class="material-symbols-outlined">description</span>
+        </div>
+        <div class="stat-details">
+            <h3>{{ total_cvs_parsed }}</h3>
+            <p>Total CVs Parsed</p>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon icon-green">
+            <span class="material-symbols-outlined">verified_user</span>
+        </div>
+        <div class="stat-details">
+            <h3>{{ shortlisted_count }}</h3>
+            <p>Shortlisted Candidates</p>
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-icon icon-orange">
+            <span class="material-symbols-outlined">pending_actions</span>
+        </div>
+        <div class="stat-details">
+            <h3>{{ pending_reviews }}</h3>
+            <p>Pending AI Reviews</p>
+        </div>
+    </div>
+</div>
+
+<div class="dashboard-row">
+    
+    <div class="card">
+        <div class="section-header">
+            <h2>Recent Job Postings</h2>
+            <a href="{% url 'job_list' %}" class="btn-text">View All Jobs</a>
+        </div>
+        <table class="data-table">
+            <thead>
+                <tr>
+                    <th>Job Title</th>
+                    <th>Department</th>
+                    <th>CVs Received</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for job in recent_jobs %}
+                <tr class="clickable-row" onclick="window.location.href='{% url 'job_detail' job.id %}'">
+                    <td><strong>{{ job.title }}</strong></td>
+                    <td>{{ job.department }}</td>
+                    <td>{{ job.cv_count }}</td>
+                    <td>
+                        {% if job.status == 'active' %}
+                            <span class="badge badge-active">Active</span>
+                        {% else %}
+                            <span class="badge badge-closed">Closed</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" style="text-align: center; color: var(--text-light); padding: 30px;">
+                        No jobs created yet.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="section-header">
+            <h2>Recent AI Activity</h2>
+        </div>
+        <ul class="activity-list">
+            {% for activity in recent_activities %}
+            <li class="activity-item">
+                <div class="activity-icon">
+                    <span class="material-symbols-outlined" style="color: #10b981;">person_add</span>
+                </div>
+                <div class="activity-text">
+                    <p><strong>{{ activity.cv.candidate.full_name|default:"Candidate" }}</strong> achieved a {{ activity.overall_score }}% match score for {{ activity.job.title }}.</p>
+                    <span>{{ activity.evaluated_at|timesince }} ago</span>
+                </div>
+            </li>
+            {% empty %}
+            <li class="activity-item" style="border: none; justify-content: center;">
+                <div class="activity-text" style="text-align: center; color: var(--text-light);">
+                    <p>No recent AI activity found.</p>
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+</div>
+{% endblock %}

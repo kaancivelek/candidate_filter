@@ -1,0 +1,257 @@
+{% extends 'base.html' %}
+
+{% block title %}My Profile | Intelligent Cloud HR{% endblock %}
+
+{% block page_title %}Profile Settings{% endblock %}
+
+{% block content %}
+<style>
+    /* التخطيط العام للصفحة (عمود للبطاقة التعريفية وعمود للنماذج) */
+    .profile-layout {
+        display: grid;
+        grid-template-columns: 1fr 2.5fr;
+        gap: 24px;
+        align-items: start;
+    }
+
+    /* 1. العمود الجانبي (بطاقة المستخدم) */
+    .profile-sidebar {
+        text-align: center;
+        padding: 30px 20px;
+    }
+
+    .profile-avatar-large {
+        width: 100px;
+        height: 100px;
+        background-color: var(--secondary-color);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        font-weight: 700;
+        margin: 0 auto 16px auto;
+        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.3);
+    }
+
+    .profile-sidebar h2 {
+        font-size: 1.2rem;
+        color: var(--primary-color);
+        margin-bottom: 4px;
+    }
+
+    .profile-sidebar p {
+        color: var(--text-light);
+        font-size: 0.9rem;
+        margin-bottom: 20px;
+    }
+
+    .profile-badge {
+        display: inline-block;
+        background-color: #f1f5f9;
+        color: var(--text-main);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: 1px solid var(--border-color);
+    }
+
+    /* 2. العمود الرئيسي (النماذج) */
+    .profile-content {
+        display: flex;
+        flex-direction: column;
+        gap: 24px;
+    }
+
+    .section-header {
+        font-size: 1.1rem;
+        color: var(--primary-color);
+        margin-bottom: 20px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid var(--border-color);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    /* شبكة الحقول */
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .form-group.full-width {
+        grid-column: 1 / -1;
+    }
+
+    .form-group label {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+
+    .form-control {
+        padding: 10px 14px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        color: var(--text-main);
+        outline: none;
+        transition: border-color 0.2s;
+        background-color: #fff;
+    }
+
+    /* حقل غير قابل للتعديل (Read-only) */
+    .form-control[readonly] {
+        background-color: #f8fafc;
+        color: var(--text-light);
+        cursor: not-allowed;
+    }
+
+    .form-control:focus:not([readonly]) {
+        border-color: var(--secondary-color);
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        margin-top: 24px;
+    }
+
+    .btn-save {
+        padding: 10px 24px;
+        background-color: var(--secondary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .btn-save:hover {
+        background-color: #2563eb;
+    }
+
+    /* تنسيق رسائل الخطأ */
+    .errorlist {
+        list-style: none;
+        color: #ef4444;
+        font-size: 0.85rem;
+        margin-bottom: 15px;
+        padding: 10px;
+        background-color: #fef2f2;
+        border-radius: 8px;
+        border: 1px solid #fee2e2;
+    }
+</style>
+
+<div class="profile-layout">
+    
+    <div class="card profile-sidebar">
+        <div class="profile-avatar-large">{{ request.user.first_name|slice:":1"|upper }}{{ request.user.last_name|slice:":1"|upper }}</div>
+        <h2>{{ request.user.first_name }} {{ request.user.last_name }}</h2>
+        <p>{{ request.user.email }}</p>
+        <span class="profile-badge">
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: text-bottom;">verified_user</span>
+            {% if request.user.is_superuser %}Super Admin{% else %}HR Admin{% endif %}
+        </span>
+    </div>
+
+    <div class="profile-content">
+        
+        <div class="card">
+            <h3 class="section-header">
+                <span class="material-symbols-outlined">person</span>
+                Personal Information
+            </h3>
+            
+            <form action="" method="POST">
+                {% csrf_token %}
+
+                {% if profile_form.errors %}
+                    <ul class="errorlist">
+                        {% for field, errors in profile_form.errors.items %}
+                            {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="first_name">First Name</label>
+                        <input type="text" id="first_name" name="first_name" class="form-control" value="{{ request.user.first_name }}" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="last_name">Last Name</label>
+                        <input type="text" id="last_name" name="last_name" class="form-control" value="{{ request.user.last_name }}" required>
+                    </div>
+
+                    <div class="form-group full-width">
+                        <label for="email">Email Address</label>
+                        <input type="email" id="email" class="form-control" value="{{ request.user.email }}" readonly title="Contact IT support to change your email">
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" name="update_profile" class="btn-save">Save Changes</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card" id="password-section">
+            <h3 class="section-header" style="color: #ef4444; border-bottom-color: #fee2e2;">
+                <span class="material-symbols-outlined" style="color: #ef4444;">security</span>
+                Change Password
+            </h3>
+            
+            <form action="" method="POST">
+                {% csrf_token %}
+
+                {% if password_form.errors %}
+                    <ul class="errorlist">
+                        {% for field, errors in password_form.errors.items %}
+                            {% for error in errors %}<li>{{ error }}</li>{% endfor %}
+                        {% endfor %}
+                    </ul>
+                {% endif %}
+
+                <div class="form-grid">
+                    <div class="form-group full-width">
+                        <label for="old_password">Current Password</label>
+                        <input type="password" id="old_password" name="old_password" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="new_password">New Password</label>
+                        <input type="password" id="new_password" name="new_password" class="form-control" minlength="8" required>
+                        <span style="font-size: 0.75rem; color: var(--text-light);">Must be at least 8 characters.</span>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="confirm_password">Confirm New Password</label>
+                        <input type="password" id="confirm_password" name="confirm_password" class="form-control" minlength="8" required>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="submit" name="change_password" class="btn-save" style="background-color: var(--primary-color);">Update Password</button>
+                </div>
+            </form>
+        </div>
+
+    </div>
+</div>
+
+{% endblock %}

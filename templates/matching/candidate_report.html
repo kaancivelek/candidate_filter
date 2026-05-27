@@ -1,0 +1,304 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ match.cv.candidate.full_name }} - AI Report | Intelligent Cloud HR{% endblock %}
+
+{% block page_title %}Candidate AI Evaluation{% endblock %}
+
+{% block content %}
+<style>
+    /* التنسيقات السابقة كما هي */
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .header-left { display: flex; align-items: center; gap: 15px; }
+    .bg-high { background-color: #10b981; }
+    .bg-med { background-color: #f59e0b; }
+    .bg-low { background-color: #ef4444; }
+    .btn-icon { display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background-color: white; border: 1px solid var(--border-color); border-radius: 8px; color: var(--text-main); text-decoration: none; transition: all 0.2s; cursor: pointer; }
+    .btn-icon:hover { background-color: #f1f5f9; color: var(--primary-color); }
+    .candidate-info h1 { font-size: 1.5rem; color: var(--primary-color); margin-bottom: 4px; display: flex; align-items: center; gap: 10px; }
+    .candidate-meta { font-size: 0.85rem; color: var(--text-light); display: flex; align-items: center; gap: 15px; }
+    .final-score-badge { padding: 4px 12px; border-radius: 20px; font-size: 1rem; font-weight: 700; }
+    .score-high { background-color: #10b981; color: white; }
+    .score-med { background-color: #f59e0b; color: white; }
+    .score-low { background-color: #ef4444; color: white; }
+    .report-layout { display: grid; grid-template-columns: 1.2fr 1fr; gap: 24px; height: calc(100vh - 180px); }
+    .scrollable-card { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; overflow-y: auto; padding: 24px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+    .ai-summary-box { background: linear-gradient(135deg, #f8fafc 0%, #eff6ff 100%); border: 1px solid #bfdbfe; border-radius: 10px; padding: 20px; margin-bottom: 24px; position: relative; }
+    .ai-summary-box h3 { color: var(--secondary-color); font-size: 1.1rem; display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+    .ai-summary-box p { font-size: 0.9rem; line-height: 1.6; color: var(--text-main); }
+    .criteria-section { margin-bottom: 30px; }
+    .section-title { font-size: 1.1rem; color: var(--primary-color); margin-bottom: 15px; padding-bottom: 8px; border-bottom: 1px solid var(--border-color); }
+    
+    /* =========================================
+       تنسيقات القوائم القابلة للطي (Expandable Details)
+       ========================================= */
+    .evaluation-detail {
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        margin-bottom: 15px;
+        overflow: hidden;
+        transition: box-shadow 0.2s;
+    }
+    .evaluation-detail:hover { box-shadow: 0 2px 8px rgba(0,0,0,0.04); }
+    
+    .evaluation-detail summary {
+        padding: 15px;
+        cursor: pointer;
+        display: block; /* يخفي السهم الافتراضي في بعض المتصفحات */
+        outline: none;
+    }
+    /* إخفاء السهم الافتراضي بشكل كامل */
+    .evaluation-detail summary::-webkit-details-marker { display: none; }
+    
+    .summary-content {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+    }
+    
+    .progress-label { font-size: 0.9rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 8px;}
+    .progress-bar-wrapper { flex-grow: 1; margin: 0 20px; }
+    .progress-bar-bg { height: 8px; background-color: #e2e8f0; border-radius: 4px; overflow: hidden; }
+    .progress-fill { height: 100%; border-radius: 4px; transition: width 1s ease-in-out; }
+    .score-text { font-weight: 700; font-size: 0.9rem; width: 45px; text-align: right;}
+    .expand-icon { color: var(--text-light); transition: transform 0.3s; }
+    
+    /* دوران الأيقونة عند الفتح */
+    .evaluation-detail[open] .expand-icon { transform: rotate(180deg); }
+    
+    .detail-body {
+        padding: 15px;
+        background-color: #f8fafc;
+        border-top: 1px dashed var(--border-color);
+        font-size: 0.85rem;
+        color: var(--text-main);
+    }
+    .detail-body ul { margin: 10px 0 0 20px; padding: 0; color: var(--text-light); }
+    .detail-body li { margin-bottom: 6px; }
+
+    /* =========================================
+       تنسيقات المهارات وصندوق التمرير
+       ========================================= */
+    .skills-analysis { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;}
+    .skills-box h4 { font-size: 0.9rem; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+    .skills-list { display: flex; flex-wrap: wrap; gap: 8px; }
+    .skill-tag { padding: 6px 12px; border-radius: 6px; font-size: 0.8rem; font-weight: 600; display: flex; align-items: center; gap: 4px; }
+    .skill-matched { background-color: #d1fae5; color: #059669; border: 1px solid #a7f3d0; }
+    .skill-missing { background-color: #fee2e2; color: #dc2626; border: 1px solid #fecaca; }
+    .skill-neutral { background-color: #f1f5f9; color: var(--text-main); border: 1px solid #e2e8f0; }
+    
+    .all-skills-container {
+        max-height: 140px;
+        overflow-y: auto;
+        padding: 15px;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+    }
+    /* تحسين شريط التمرير */
+    .all-skills-container::-webkit-scrollbar { width: 6px; }
+    .all-skills-container::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px;}
+    .all-skills-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px;}
+
+    .pdf-container { width: 100%; height: 100%; min-height: 500px; border: none; border-radius: 8px; background-color: #f1f5f9; display: flex; align-items: center; justify-content: center; flex-direction: column; color: var(--text-light); }
+    
+    @media print {
+        .sidebar, .navbar, .btn-icon, .header-actions { display: none !important; }
+        body, .main-layout, .content-area { background-color: white !important; padding: 0 !important; margin: 0 !important; height: auto !important; overflow: visible !important; }
+        .report-layout > div:nth-child(2) { display: none !important; }
+        .report-layout { display: block !important; height: auto !important; }
+        .scrollable-card { border: none !important; box-shadow: none !important; padding: 0 !important; overflow: visible !important; }
+        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        .ai-summary-box { border: 1px solid #e2e8f0 !important; background: #f8fafc !important; }
+        .progress-bar-bg { background-color: #f1f5f9 !important; border: 1px solid #e2e8f0 !important; }
+        /* فتح جميع القوائم القابلة للطي تلقائياً عند الطباعة */
+        details { display: block; }
+        details[open] summary ~ * { display: block; }
+    }
+</style>
+
+<div class="page-header">
+    <div class="header-left">
+        <a href="{% url 'job_detail' match.job.id %}" class="btn-icon" title="Back to Job">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div class="candidate-info">
+            <h1>{{ match.cv.candidate.full_name|default:"Unknown Candidate" }} 
+                <span class="final-score-badge 
+                    {% if match.overall_score >= 80 %}score-high
+                    {% elif match.overall_score >= 50 %}score-med
+                    {% else %}score-low{% endif %}">
+                    {{ match.overall_score|floatformat:0 }}% Match
+                </span>
+            </h1>
+            <div class="candidate-meta">
+                <span><span class="material-symbols-outlined" style="font-size: 16px;">mail</span> {{ match.cv.candidate.email|default:"No email provided" }}</span>
+                <span><span class="material-symbols-outlined" style="font-size: 16px;">call</span> {{ match.cv.candidate.phone|default:"No phone provided" }}</span>
+                <span><span class="material-symbols-outlined" style="font-size: 16px;">work</span> {{ match.job.title }}</span>
+            </div>
+        </div>
+    </div>
+    <div>
+        <button class="btn-icon" style="background-color: var(--secondary-color); color: white;" title="Download AI Report" onclick="window.print()">
+            <span class="material-symbols-outlined">download</span>
+        </button>
+    </div>
+</div>
+
+<div class="report-layout">
+    
+    <div class="scrollable-card">
+        
+        <div class="ai-summary-box">
+            <h3><span class="material-symbols-outlined">auto_awesome</span> AI Executive Summary</h3>
+            <p>
+                {% if match.ai_summary %}
+                    {{ match.ai_summary|linebreaksbr }}
+                {% else %}
+                    <span style="color: var(--text-light); font-style: italic;">No AI summary generated for this candidate yet.</span>
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="criteria-section">
+            <h3 class="section-title">Evaluation Breakdown (Click to expand)</h3>
+            
+            <details class="evaluation-detail">
+                <summary>
+                    <div class="summary-content">
+                        <span class="progress-label"><span class="material-symbols-outlined" style="font-size: 20px; color: var(--secondary-color);">code</span> Skills Match</span>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-bg">
+                                <div class="progress-fill {% if match.skills_score >= 75 %}bg-high{% elif match.skills_score >= 50 %}bg-med{% else %}bg-low{% endif %}" style="width: {{ match.skills_score }}%;"></div>
+                            </div>
+                        </div>
+                        <span class="score-text" style="color: var(--primary-color);">{{ match.skills_score|floatformat:0 }}%</span>
+                        <span class="material-symbols-outlined expand-icon">expand_more</span>
+                    </div>
+                </summary>
+                <div class="detail-body">
+                    <strong>AI Analysis:</strong> Candidate possesses {{ matched_skills|length }} out of the {{ match.job.required_skills.count }} required target keywords for this role.
+                </div>
+            </details>
+
+            <details class="evaluation-detail">
+                <summary>
+                    <div class="summary-content">
+                        <span class="progress-label"><span class="material-symbols-outlined" style="font-size: 20px; color: var(--secondary-color);">work_history</span> Experience</span>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-bg">
+                                <div class="progress-fill {% if match.experience_score >= 75 %}bg-high{% elif match.experience_score >= 50 %}bg-med{% else %}bg-low{% endif %}" style="width: {{ match.experience_score }}%;"></div>
+                            </div>
+                        </div>
+                        <span class="score-text" style="color: var(--primary-color);">{{ match.experience_score|floatformat:0 }}%</span>
+                        <span class="material-symbols-outlined expand-icon">expand_more</span>
+                    </div>
+                </summary>
+                <div class="detail-body">
+                    <strong>Extracted Workplaces:</strong>
+                    {% if parsed_data and parsed_data.workplaces %}
+                        <ul>
+                            {% for wp in parsed_data.workplaces %}
+                                <li>{{ wp }}</li>
+                            {% endfor %}
+                        </ul>
+                    {% else %}
+                        <p style="color: var(--text-light); margin-top: 5px;">No specific workplaces extracted.</p>
+                    {% endif %}
+                </div>
+            </details>
+
+            <details class="evaluation-detail">
+                <summary>
+                    <div class="summary-content">
+                        <span class="progress-label"><span class="material-symbols-outlined" style="font-size: 20px; color: var(--secondary-color);">school</span> Education</span>
+                        <div class="progress-bar-wrapper">
+                            <div class="progress-bar-bg">
+                                <div class="progress-fill {% if match.education_score >= 75 %}bg-high{% elif match.education_score >= 50 %}bg-med{% else %}bg-low{% endif %}" style="width: {{ match.education_score }}%;"></div>
+                            </div>
+                        </div>
+                        <span class="score-text" style="color: var(--primary-color);">{{ match.education_score|floatformat:0 }}%</span>
+                        <span class="material-symbols-outlined expand-icon">expand_more</span>
+                    </div>
+                </summary>
+                <div class="detail-body">
+                    <strong>Extracted Qualifications:</strong>
+                    {% if parsed_data %}
+                        <ul>
+                            {% if parsed_data.degree %}<li><strong>Degree:</strong> {{ parsed_data.degree }}</li>{% endif %}
+                            {% if parsed_data.gpa %}<li><strong>GPA:</strong> {{ parsed_data.gpa }}</li>{% endif %}
+                            {% if parsed_data.universities %}
+                                <li><strong>Institutions:</strong>
+                                    <ul>
+                                        {% for uni in parsed_data.universities %}
+                                            <li>{{ uni }}</li>
+                                        {% endfor %}
+                                    </ul>
+                                </li>
+                            {% endif %}
+                        </ul>
+                        {% if not parsed_data.degree and not parsed_data.universities %}<p style="color: var(--text-light); margin-top: 5px;">No education details extracted.</p>{% endif %}
+                    {% else %}
+                        <p style="color: var(--text-light); margin-top: 5px;">No data available.</p>
+                    {% endif %}
+                </div>
+            </details>
+        </div>
+
+        <div class="criteria-section">
+            <h3 class="section-title">Job Requirements Analysis</h3>
+            <div class="skills-analysis">
+                <div class="skills-box">
+                    <h4 style="color: #059669;"><span class="material-symbols-outlined" style="font-size: 18px;">check_circle</span> Matched Job Skills</h4>
+                    <div class="skills-list">
+                        {% for skill in matched_skills %}
+                            <span class="skill-tag skill-matched">{{ skill }}</span>
+                        {% empty %}
+                            <span style="font-size: 0.8rem; color: var(--text-light);">No matching skills found.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                
+                <div class="skills-box">
+                    <h4 style="color: #dc2626;"><span class="material-symbols-outlined" style="font-size: 18px;">cancel</span> Missing Job Skills</h4>
+                    <div class="skills-list">
+                        {% for skill in missing_skills %}
+                            <span class="skill-tag skill-missing">{{ skill }}</span>
+                        {% empty %}
+                            <span style="font-size: 0.8rem; color: #059669;">Candidate has all required skills!</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            
+            <h4 style="font-size: 0.9rem; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; color: var(--primary-color);">
+                <span class="material-symbols-outlined" style="font-size: 18px;">manage_search</span> All Extracted Candidate Skills ({{ all_candidate_skills|length }})
+            </h4>
+            <div class="all-skills-container">
+                <div class="skills-list">
+                    {% for skill in all_candidate_skills %}
+                        <span class="skill-tag skill-neutral">{{ skill }}</span>
+                    {% empty %}
+                        <span style="font-size: 0.8rem; color: var(--text-light);">No skills were extracted by the AI Engine.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <div class="scrollable-card" style="padding: 0; overflow: hidden;">
+        {% if match.cv.file_path %}
+            <iframe src="{{ match.cv.file_path.url }}" width="100%" height="100%" style="border: none;"></iframe>
+        {% else %}
+            <div class="pdf-container">
+                <span class="material-symbols-outlined" style="font-size: 64px; color: #cbd5e1; margin-bottom: 15px;">picture_as_pdf</span>
+                <p style="font-size: 1.1rem; font-weight: 600; color: var(--text-main);">No Document Available</p>
+                <p style="font-size: 0.85rem;">The original CV document could not be found.</p>
+            </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

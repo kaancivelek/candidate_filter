@@ -1,0 +1,433 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ job.title }} | Intelligent Cloud HR{% endblock %}
+
+{% block page_title %}Job Operations Center{% endblock %}
+
+{% block content %}
+<style>
+    /* رأس الصفحة */
+    .page-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .btn-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-main);
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-icon:hover {
+        background-color: #f1f5f9;
+        color: var(--primary-color);
+    }
+
+    .job-title-wrapper h1 {
+        font-size: 1.5rem;
+        color: var(--primary-color);
+        margin-bottom: 4px;
+    }
+
+    .job-meta {
+        font-size: 0.85rem;
+        color: var(--text-light);
+        display: flex;
+        align-items: center;
+        gap: 15px;
+    }
+
+    .job-meta span {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+
+    .header-actions {
+        display: flex;
+        gap: 10px;
+    }
+
+    /* تخطيط القسم العلوي (معلومات + رفع) */
+    .top-layout {
+        display: grid;
+        grid-template-columns: 2fr 1fr;
+        gap: 24px;
+        margin-bottom: 30px;
+    }
+
+    /* بطاقة تفاصيل الوظيفة */
+    .info-card h3 {
+        font-size: 1.1rem;
+        color: var(--primary-color);
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .skills-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-bottom: 20px;
+    }
+
+    .skill-tag {
+        background-color: #eff6ff;
+        color: var(--secondary-color);
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: 1px solid #bfdbfe;
+    }
+
+    .req-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 15px;
+    }
+
+    .req-item {
+        background-color: #f8fafc;
+        padding: 12px;
+        border-radius: 8px;
+        border: 1px solid var(--border-color);
+    }
+
+    .req-item span {
+        display: block;
+        font-size: 0.75rem;
+        color: var(--text-light);
+        text-transform: uppercase;
+        margin-bottom: 4px;
+    }
+
+    .req-item strong {
+        font-size: 0.9rem;
+        color: var(--text-main);
+    }
+
+    /* منطقة رفع السير الذاتية (Drag & Drop) */
+    .upload-zone {
+        border: 2px dashed #cbd5e1;
+        border-radius: 12px;
+        padding: 30px 20px;
+        text-align: center;
+        background-color: #f8fafc;
+        transition: all 0.2s;
+        cursor: pointer;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        min-height: 200px;
+    }
+
+    .upload-zone:hover {
+        border-color: var(--secondary-color);
+        background-color: #eff6ff;
+    }
+
+    .upload-icon {
+        font-size: 48px;
+        color: var(--secondary-color);
+        margin-bottom: 12px;
+    }
+
+    .upload-zone h4 {
+        color: var(--primary-color);
+        font-size: 1rem;
+        margin-bottom: 8px;
+    }
+
+    .upload-zone p {
+        color: var(--text-light);
+        font-size: 0.8rem;
+        margin-bottom: 15px;
+    }
+
+    .btn-upload {
+        padding: 8px 20px;
+        background-color: var(--secondary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    /* شريط تقدم الذكاء الاصطناعي */
+    .ai-processing {
+        display: none;
+        margin-top: 15px;
+        background-color: #f1f5f9;
+        padding: 15px;
+        border-radius: 8px;
+        border: 1px solid #e2e8f0;
+    }
+
+    .ai-processing-text {
+        display: flex;
+        justify-content: space-between;
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: var(--text-main);
+        margin-bottom: 8px;
+    }
+
+    .progress-bar-container {
+        height: 8px;
+        background-color: #e2e8f0;
+        border-radius: 4px;
+        overflow: hidden;
+    }
+
+    .progress-bar-fill {
+        height: 100%;
+        width: 45%;
+        background: linear-gradient(90deg, var(--secondary-color), #8b5cf6);
+        border-radius: 4px;
+        transition: width 0.3s;
+        animation: pulse 1.5s infinite; 
+    }
+
+    @keyframes pulse {
+        0% { opacity: 0.8; }
+        50% { opacity: 1; }
+        100% { opacity: 0.8; }
+    }
+
+    /* جدول المرشحين */
+    .section-title {
+        font-size: 1.2rem;
+        color: var(--primary-color);
+        margin-bottom: 15px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .data-table th, .data-table td {
+        padding: 16px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .data-table th {
+        background-color: #f8fafc;
+        color: var(--text-light);
+        font-weight: 600;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+    }
+
+    .candidate-name {
+        font-weight: 600;
+        color: var(--primary-color);
+        display: block;
+    }
+
+    .candidate-email {
+        font-size: 0.8rem;
+        color: var(--text-light);
+    }
+
+    /* تقييم التوافق (Match Score) */
+    .score-pill {
+        display: inline-block;
+        padding: 6px 12px;
+        border-radius: 20px;
+        font-weight: 700;
+        font-size: 0.85rem;
+    }
+
+    .score-high { background-color: #d1fae5; color: #059669; }
+    .score-med { background-color: #fef08a; color: #ca8a04; }
+    .score-low { background-color: #fee2e2; color: #dc2626; }
+
+    .btn-report {
+        color: var(--secondary-color);
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 4px;
+    }
+    .btn-report:hover { text-decoration: underline; }
+</style>
+
+<div class="page-header">
+    <div class="header-left">
+        <a href="{% url 'job_list' %}" class="btn-icon" title="Back to Jobs">
+            <span class="material-symbols-outlined">arrow_back</span>
+        </a>
+        <div class="job-title-wrapper">
+            <h1>{{ job.title }}</h1>
+            <div class="job-meta">
+                <span><span class="material-symbols-outlined" style="font-size: 16px;">domain</span> {{ job.department }} Dept</span>
+                <span><span class="material-symbols-outlined" style="font-size: 16px;">calendar_today</span> Posted: {{ job.created_at|date:"M d, Y" }}</span>
+                {% if job.status == 'active' %}
+                    <span style="color: #059669; font-weight: 600;">Active</span>
+                {% else %}
+                    <span style="color: #dc2626; font-weight: 600;">Closed</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="header-actions">
+        <form method="POST" style="display: inline-block; margin: 0;">
+            {% csrf_token %}
+            <input type="hidden" name="toggle_status" value="true">
+            <button type="submit" class="btn-icon" 
+                title="{% if job.status == 'active' %}Close Job{% else %}Reopen Job{% endif %}" 
+                style="cursor: pointer; border-color: {% if job.status == 'active' %}#fca5a5{% else %}#6ee7b7{% endif %};">
+                <span class="material-symbols-outlined" style="color: {% if job.status == 'active' %}#ef4444{% else %}#10b981{% endif %};">
+                    {% if job.status == 'active' %}block{% else %}check_circle{% endif %}
+                </span>
+            </button>
+        </form>
+        
+        <a href="{% url 'job_edit' job.id %}" class="btn-icon" title="Edit Job"><span class="material-symbols-outlined">edit</span></a>
+    </div>
+</div>
+
+<div class="top-layout">
+    <div class="card info-card">
+        <h3><span class="material-symbols-outlined">psychology</span> AI Target Keywords</h3>
+        <div class="skills-container">
+            {% for skill in skills %}
+                <span class="skill-tag">{{ skill.skill_name }}</span>
+            {% empty %}
+                <span style="color: var(--text-light); font-size: 0.85rem;">No specific skills added.</span>
+            {% endfor %}
+        </div>
+        
+        <div class="req-grid">
+            <div class="req-item">
+                <span>Experience</span>
+                <strong>{{ job.min_experience }} Years</strong>
+            </div>
+            <div class="req-item">
+                <span>Education</span>
+                <strong style="text-transform: capitalize;">{{ job.education_level }}</strong>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 0;">
+        <form method="POST" enctype="multipart/form-data" id="cv-upload-form">
+            {% csrf_token %}
+            <div class="upload-zone" onclick="document.getElementById('cv-upload').click()">
+                <span class="material-symbols-outlined upload-icon">cloud_upload</span>
+                <h4>Upload CVs</h4>
+                <p>Drag & drop PDF/DOCX files here<br>or click to browse</p>
+                <button type="button" class="btn-upload">Select Files</button>
+                <input type="file" id="cv-upload" name="cv_files" multiple accept=".pdf,.doc,.docx" style="display: none;">
+            </div>
+        </form>
+        
+        <div class="ai-processing" id="ai-status">
+            <div class="ai-processing-text">
+                <span><span class="material-symbols-outlined" style="font-size: 14px; vertical-align: middle;">smart_toy</span> Parsing & Scoring...</span>
+                <span>Processing</span>
+            </div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="section-title">
+        <span>AI Shortlisted Candidates ({{ matches|length }} Total)</span>
+        <a href="{% url 'export_candidates' job.id %}" class="btn-icon" title="Export to Excel (CSV)" style="cursor: pointer;">
+            <span class="material-symbols-outlined">download</span>
+        </a>
+    </div>
+    
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Rank</th>
+                <th>Candidate Details</th>
+                <th>Experience Match</th>
+                <th>AI Match Score</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for match in matches %}
+            <tr>
+                <td><strong style="color: var(--text-light);">#{{ forloop.counter }}</strong></td>
+                <td>
+                    <span class="candidate-name">{{ match.cv.candidate.full_name|default:"Unknown Candidate" }}</span>
+                    <span class="candidate-email">{{ match.cv.candidate.email|default:"No email found" }}</span>
+                </td>
+                <td>{{ match.experience_score|floatformat:0 }}% Match</td>
+                
+                <td>
+                    <span class="score-pill 
+                        {% if match.overall_score >= 80 %}score-high
+                        {% elif match.overall_score >= 50 %}score-med
+                        {% else %}score-low{% endif %}">
+                        {{ match.overall_score|floatformat:0 }}% Match
+                    </span>
+                </td>
+                
+                <td>
+                    <a href="{% url 'candidate_report' match.id %}" class="btn-report" class="btn-report">
+                        View Report <span class="material-symbols-outlined" style="font-size: 16px;">arrow_forward</span>
+                    </a>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; color: var(--text-light); padding: 30px;">
+                    No candidates have been evaluated for this job yet.
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    document.getElementById('cv-upload').addEventListener('change', function() {
+        if(this.files.length > 0) {
+            // 1. إخفاء منطقة الرفع وإظهار شريط التحميل (لإعلام المستخدم أن العملية بدأت)
+            document.querySelector('.upload-zone').style.display = 'none';
+            document.getElementById('ai-status').style.display = 'block';
+            
+            // 2. إرسال النموذج (Form) فعلياً إلى خادم ديجانغو لبدء عمل الذكاء الاصطناعي
+            document.getElementById('cv-upload-form').submit();
+        }
+    });
+</script>
+{% endblock %}

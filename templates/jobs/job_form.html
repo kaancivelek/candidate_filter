@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+
+{% block title %}Create New Job | Intelligent Cloud HR{% endblock %}
+
+{% block page_title %}Create New Job Post{% endblock %}
+
+{% block content %}
+<style>
+    /* تنسيق رأس الصفحة وزر العودة */
+    .page-header {
+        display: flex;
+        align-items: center;
+        gap: 15px;
+        margin-bottom: 24px;
+    }
+
+    .btn-back {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background-color: white;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        color: var(--text-main);
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-back:hover {
+        background-color: #f1f5f9;
+        color: var(--primary-color);
+    }
+
+    .page-header h1 {
+        font-size: 1.5rem;
+        color: var(--primary-color);
+    }
+
+    /* حاوية النموذج */
+    .form-card {
+        max-width: 900px;
+        padding: 30px;
+    }
+
+    /* تقسيم النموذج إلى أقسام */
+    .form-section {
+        margin-bottom: 30px;
+        padding-bottom: 20px;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .form-section:last-of-type {
+        border-bottom: none;
+        margin-bottom: 0;
+        padding-bottom: 0;
+    }
+
+    .form-section-title {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: var(--primary-color);
+        margin-bottom: 20px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .form-section-title .material-symbols-outlined {
+        color: var(--secondary-color);
+        font-size: 22px;
+    }
+
+    /* شبكة الحقول (حقلين في كل سطر للمقاسات الكبيرة) */
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+    }
+
+    /* حقل يأخذ العرض بالكامل */
+    .full-width {
+        grid-column: 1 / -1;
+    }
+
+    .form-group {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .form-group label {
+        font-size: 0.9rem;
+        font-weight: 600;
+        color: var(--text-main);
+    }
+
+    /* علامة النجمة للحقول المطلوبة */
+    .required::after {
+        content: " *";
+        color: #ef4444;
+    }
+
+    .form-control {
+        padding: 12px 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-size: 0.95rem;
+        color: var(--text-main);
+        outline: none;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        font-family: inherit;
+    }
+
+    .form-control:focus {
+        border-color: var(--secondary-color);
+        box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+
+    textarea.form-control {
+        resize: vertical;
+        min-height: 120px;
+        line-height: 1.5;
+    }
+
+    select.form-control {
+        appearance: none;
+        background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+        background-repeat: no-repeat;
+        background-position: right 1rem center;
+        background-size: 1em;
+    }
+
+    .help-text {
+        font-size: 0.8rem;
+        color: var(--text-light);
+        margin-top: 4px;
+    }
+
+    /* أزرار الحفظ والإلغاء */
+    .form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 15px;
+        margin-top: 30px;
+        padding-top: 20px;
+        border-top: 1px solid var(--border-color);
+    }
+
+    .btn-cancel {
+        padding: 12px 24px;
+        background-color: white;
+        color: var(--text-main);
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .btn-cancel:hover {
+        background-color: #f8fafc;
+    }
+
+    .btn-submit {
+        padding: 12px 30px;
+        background-color: var(--secondary-color);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .btn-submit:hover {
+        background-color: #2563eb;
+    }
+</style>
+
+<div class="page-header">
+    <a href="{% if is_edit %}{% url 'job_detail' job.id %}{% else %}{% url 'job_list' %}{% endif %}" class="btn-back" title="Back">
+        <span class="material-symbols-outlined">arrow_back</span>
+    </a>
+    <h1>{% if is_edit %}Edit Job: {{ job.title }}{% else %}Create New Job{% endif %}</h1>
+</div>
+
+<div class="card form-card">
+    <form action="" method="POST">
+        {% csrf_token %}
+
+        <div class="form-section">
+            <h2 class="form-section-title">
+                <span class="material-symbols-outlined">info</span>
+                Basic Information
+            </h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="id_title" class="required">Job Title</label>
+                    <input type="text" id="id_title" name="title" class="form-control" value="{{ job.title|default:'' }}" placeholder="e.g. Senior Backend Developer" required>
+                </div>
+                
+                <div class="form-group">
+                    <label for="id_department" class="required">Department</label>
+                    <input type="text" id="id_department" name="department" class="form-control" value="{{ job.department|default:'' }}" placeholder="e.g. Engineering" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_status" class="required">Job Status</label>
+                    <select id="id_status" name="status" class="form-control" required>
+                        <option value="active" {% if not job or job.status == 'active' %}selected{% endif %}>Active</option>
+                        <option value="closed" {% if job.status == 'closed' %}selected{% endif %}>Closed</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">
+                <span class="material-symbols-outlined">psychology</span>
+                AI Matching Criteria
+            </h2>
+            <div class="form-grid">
+                <div class="form-group">
+                    <label for="id_experience" class="required">Minimum Experience</label>
+                    <select id="id_experience" name="experience" class="form-control" required>
+                        <option value="" disabled {% if not job %}selected{% endif %}>Select years of experience</option>
+                        <option value="0" {% if job.min_experience == 0 %}selected{% endif %}>Fresh Graduate (0 years)</option>
+                        <option value="1" {% if job.min_experience == 1 %}selected{% endif %}>1 - 2 Years</option>
+                        <option value="3" {% if job.min_experience == 3 %}selected{% endif %}>3 - 5 Years</option>
+                        <option value="5" {% if job.min_experience == 5 %}selected{% endif %}>5+ Years</option>
+                        <option value="10" {% if job.min_experience == 10 %}selected{% endif %}>10+ Years</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="id_education" class="required">Education Level</label>
+                    <select id="id_education" name="education" class="form-control" required>
+                        <option value="" disabled {% if not job %}selected{% endif %}>Select education level</option>
+                        <option value="bachelor" {% if job.education_level == 'bachelor' %}selected{% endif %}>Bachelor's Degree</option>
+                        <option value="master" {% if job.education_level == 'master' %}selected{% endif %}>Master's Degree</option>
+                        <option value="phd" {% if job.education_level == 'phd' %}selected{% endif %}>PhD</option>
+                        <option value="diploma" {% if job.education_level == 'diploma' %}selected{% endif %}>Diploma</option>
+                        <option value="any" {% if job.education_level == 'any' %}selected{% endif %}>Any (Not specified)</option>
+                    </select>
+                </div>
+
+                <div class="form-group full-width">
+                    <label for="id_skills" class="required">Required Skills</label>
+                    <input type="text" id="id_skills" name="skills" class="form-control" value="{{ current_skills|default:'' }}" placeholder="e.g. Python, Django, PostgreSQL, REST API" required>
+                    <div class="help-text">Separate multiple skills with commas. The AI will use these keywords to score candidates.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h2 class="form-section-title">
+                <span class="material-symbols-outlined">description</span>
+                Job Description
+            </h2>
+            <div class="form-grid">
+                <div class="form-group full-width">
+                    <label for="id_description" class="required">Full Job Description</label>
+                    <textarea id="id_description" name="description" class="form-control" placeholder="Write the detailed responsibilities and requirements here..." required>{{ job.description|default:'' }}</textarea>
+                </div>
+            </div>
+        </div>
+
+        <div class="form-actions">
+            <a href="{% if is_edit %}{% url 'job_detail' job.id %}{% else %}{% url 'job_list' %}{% endif %}" class="btn-cancel">Cancel</a>
+            <button type="submit" class="btn-submit">{% if is_edit %}Update Job Post{% else %}Save Job Post{% endif %}</button>
+        </div>
+
+    </form>
+</div>
+{% endblock %}

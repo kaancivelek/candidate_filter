@@ -1,0 +1,45 @@
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <span class="material-symbols-outlined">cloud_done</span>
+        <span>Candidate Filter</span>
+    </div>
+    <ul class="nav-links">
+        
+        <!-- رابط لوحة التحكم -->
+        <li>
+            <a href="{% url 'dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}active{% endif %}">
+                <span class="material-symbols-outlined">dashboard</span>
+                Dashboard
+            </a>
+        </li>
+        
+        <!-- رابط إدارة الوظائف -->
+        <li>
+            <a href="{% url 'job_list' %}" class="{% if request.resolver_match.url_name in 'job_list,job_form,job_detail' %}active{% endif %}">
+                <span class="material-symbols-outlined">work</span>
+                Jobs
+            </a>
+        </li>
+        
+        <!-- رابط مستودع السير الذاتية -->
+        <li>
+            <a href="{% url 'cv_repository' %}" class="{% if request.resolver_match.url_name in 'cv_repository,candidate_report' %}active{% endif %}">
+                <span class="material-symbols-outlined">description</span>
+                CV Repository
+            </a>
+        </li>
+        
+        
+        <!-- زر تسجيل الخروج -->
+        <li style="margin-top: auto; padding-top: 50px;">
+            <form action="{% url 'logout' %}" method="POST" style="display: inline;">
+                {% csrf_token %}
+                <button type="submit" style="background: none; border: none; width: 100%; text-align: left; padding: 12px 24px; color: #ef4444; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 15px; transition: all 0.2s;">
+                    <span class="material-symbols-outlined">logout</span>
+                    Logout
+                </button>
+            </form>
+        </li>
+        
+    </ul>
+</aside>

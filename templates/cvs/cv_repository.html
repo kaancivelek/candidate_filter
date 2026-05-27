@@ -1,0 +1,200 @@
+{% extends 'base.html' %}
+
+{% block title %}CV Repository | Intelligent Cloud HR{% endblock %}
+
+{% block page_title %}Global CV Repository{% endblock %}
+
+{% block content %}
+<style>
+    /* ... (نفس الستايل الخاص بك تماماً، لم يتم حذف أي شيء منه) ... */
+    .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; }
+    .page-header h1 { font-size: 1.5rem; color: var(--primary-color); display: flex; align-items: center; gap: 10px; }
+    .btn-outline { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; background-color: white; color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-outline:hover { background-color: #f8fafc; border-color: #cbd5e1; }
+    .filter-card { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; margin-bottom: 24px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02); }
+    .filter-grid { display: grid; grid-template-columns: 2fr 1fr 1fr auto; gap: 15px; align-items: end; }
+    .form-group { display: flex; flex-direction: column; gap: 8px; }
+    .form-group label { font-size: 0.85rem; font-weight: 600; color: var(--text-main); }
+    .search-wrapper { position: relative; display: flex; align-items: center; }
+    .search-wrapper .material-symbols-outlined { position: absolute; left: 12px; color: var(--text-light); }
+    .form-control { width: 100%; padding: 10px 12px 10px 40px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 0.95rem; color: var(--text-main); outline: none; transition: border-color 0.2s; }
+    select.form-control { padding-left: 12px; }
+    .form-control:focus { border-color: var(--secondary-color); }
+    .btn-search { padding: 10px 24px; background-color: var(--secondary-color); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; transition: background-color 0.2s; height: 42px; }
+    .btn-search:hover { background-color: #2563eb; }
+    .table-card { background-color: var(--surface-color); border: 1px solid var(--border-color); border-radius: 12px; overflow: hidden; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.02); }
+    .data-table { width: 100%; border-collapse: collapse; }
+    .data-table th, .data-table td { padding: 16px 20px; text-align: left; border-bottom: 1px solid var(--border-color); }
+    .data-table th { background-color: #f8fafc; color: var(--text-light); font-weight: 600; font-size: 0.85rem; text-transform: uppercase; }
+    .data-table tr:hover td { background-color: #f8fafc; }
+    .candidate-cell { display: flex; align-items: center; gap: 12px; }
+    .avatar-sm { width: 36px; height: 36px; background-color: #e2e8f0; color: var(--text-main); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.9rem; text-transform: uppercase; }
+    .candidate-name { font-weight: 600; color: var(--primary-color); display: block; }
+    .candidate-contact { font-size: 0.8rem; color: var(--text-light); }
+    .extracted-skills { display: flex; flex-wrap: wrap; gap: 6px; }
+    .skill-pill { background-color: #f1f5f9; color: var(--text-main); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; border: 1px solid #e2e8f0; }
+    .action-links { display: flex; gap: 15px; }
+    .action-links a { color: var(--secondary-color); text-decoration: none; font-weight: 600; font-size: 0.9rem; }
+    .action-links a:hover { text-decoration: underline; }
+    .pagination { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background-color: white; }
+    .page-info { font-size: 0.85rem; color: var(--text-light); }
+    .page-controls { display: flex; gap: 8px; }
+    .page-btn { padding: 6px 12px; border: 1px solid var(--border-color); border-radius: 6px; background-color: white; color: var(--text-main); cursor: pointer; font-size: 0.85rem; font-weight: 500; text-decoration: none; }
+    .page-btn:hover { background-color: #f1f5f9; }
+    .page-btn.active { background-color: var(--secondary-color); color: white; border-color: var(--secondary-color); }
+    .btn-outline {
+       display: inline-flex;
+       align-items: center;
+      gap: 8px;
+      padding: 10px 20px;
+      background-color: white;
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+       border-radius: 8px;
+       font-size: 0.95rem;
+       font-weight: 600;
+       cursor: pointer;          /* ← هذه الخاصية */
+       transition: all 0.2s;
+    }
+</style>
+
+<div class="page-header">
+    <h1><span class="material-symbols-outlined" style="font-size: 28px; color: var(--secondary-color);">folder_open</span> CV Repository</h1>
+    
+    <a href="{% url 'export_cv_database' %}?{{ request.GET.urlencode }}" class="btn-outline" style="text-decoration: none;">
+        <span class="material-symbols-outlined">download</span>
+        Export Database
+    </a>
+</div>
+
+<div class="filter-card">
+    <form action="{% url 'cv_repository' %}" method="GET" class="filter-grid">
+        <div class="form-group">
+            <label>Search Candidates</label>
+            <div class="search-wrapper">
+                <span class="material-symbols-outlined">search</span>
+                <input type="text" name="search" value="{{ search_query }}" class="form-control" placeholder="Search by name, email, or skills...">
+            </div>
+        </div>
+        
+        <div class="form-group">
+            <label>Filter by Original Job</label>
+            <select name="job" class="form-control">
+                <option value="all">All Jobs</option>
+                {% for job in jobs %}
+                    <option value="{{ job.id }}" {% if job_filter == job.id|stringformat:"s" %}selected{% endif %}>{{ job.title }}</option>
+                {% endfor %}
+            </select>
+        </div>
+
+        <div class="form-group">
+            <label>Upload Date</label>
+            <select name="date" class="form-control">
+                <option value="all" {% if date_filter == 'all' %}selected{% endif %}>Any Time</option>
+                <option value="today" {% if date_filter == 'today' %}selected{% endif %}>Today</option>
+                <option value="week" {% if date_filter == 'week' %}selected{% endif %}>This Week</option>
+                <option value="month" {% if date_filter == 'month' %}selected{% endif %}>This Month</option>
+            </select>
+        </div>
+
+        <button type="submit" class="btn-search">Filter Results</button>
+    </form>
+</div>
+
+<div class="table-card">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th>Candidate</th>
+                <th>Top Extracted Skills (AI)</th>
+                <th>Applied For</th>
+                <th>Upload Date</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for cv in page_obj %}
+            <tr>
+                <td>
+                    <div class="candidate-cell">
+                        <div class="avatar-sm">{{ cv.candidate.full_name|default:"UN"|slice:":2" }}</div>
+                        <div>
+                            <span class="candidate-name">{{ cv.candidate.full_name|default:"Unknown Candidate" }}</span>
+                            <span class="candidate-contact">{{ cv.candidate.email|default:"No email found" }}</span>
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    <div class="extracted-skills">
+                        {% for skill in cv.candidate.skills.all|slice:":3" %}
+                            <span class="skill-pill">{{ skill.skill_name }}</span>
+                        {% empty %}
+                            <span style="color: var(--text-light); font-size: 0.8rem;">Pending AI Parsing</span>
+                        {% endfor %}
+                        
+                        {% if cv.candidate.skills.count > 3 %}
+                            <span class="skill-pill" style="background-color: var(--secondary-color); color: white; border: none;">
+                                +{{ cv.candidate.skills.count|add:"-3" }} more
+                            </span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td><span style="font-size: 0.85rem; color: var(--text-main);">{{ cv.job.title }}</span></td>
+                <td><span style="font-size: 0.85rem; color: var(--text-light);">{{ cv.uploaded_at|date:"M d, Y" }}</span></td>
+                <td>
+                    <div class="action-links">
+                        {% if cv.match_result %}
+                      <a href="{% url 'candidate_report' cv.match_result.id %}">View Profile</a>
+                        {% else %}
+                              <span style="color: var(--text-light); font-size: 0.85rem; cursor: help;" title="AI Engine is still processing or failed">Report Unavailable</span>
+                        {% endif %}
+                        
+                        {% if cv.file_path %}
+                            <a href="{{ cv.file_path.url }}" target="_blank" style="color: var(--text-light);" title="Download Original PDF">
+                                <span class="material-symbols-outlined" style="font-size: 20px;">file_download</span>
+                            </a>
+                        {% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="5" style="text-align: center; padding: 40px; color: var(--text-light);">
+                    <span class="material-symbols-outlined" style="font-size: 48px; margin-bottom: 10px;">search_off</span>
+                    <p>No candidates found matching your criteria.</p>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if page_obj.has_other_pages %}
+    <div class="pagination">
+        <div class="page-info">
+            Showing page <strong>{{ page_obj.number }}</strong> of <strong>{{ page_obj.paginator.num_pages }}</strong>
+            (Total {{ page_obj.paginator.count }} CVs)
+        </div>
+        <div class="page-controls">
+            
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}&search={{ search_query }}&job={{ job_filter }}&date={{ date_filter }}" class="page-btn">Previous</a>
+            {% endif %}
+
+            {% for num in page_obj.paginator.page_range %}
+                {% if page_obj.number == num %}
+                    <span class="page-btn active">{{ num }}</span>
+                {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                    <a href="?page={{ num }}&search={{ search_query }}&job={{ job_filter }}&date={{ date_filter }}" class="page-btn">{{ num }}</a>
+                {% endif %}
+            {% endfor %}
+
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}&search={{ search_query }}&job={{ job_filter }}&date={{ date_filter }}" class="page-btn">Next</a>
+            {% endif %}
+            
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

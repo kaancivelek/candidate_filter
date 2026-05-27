@@ -1,0 +1,36 @@
+<header class="navbar">
+    <div class="navbar-title">
+        {% block page_title %}Overview{% endblock %}
+    </div>
+    
+    <div class="user-profile dropdown-container">
+        
+        <span>{{ request.user.get_full_name|default:request.user.username }}</span>
+        
+        <div class="avatar">
+            {% if request.user.first_name and request.user.last_name %}
+                {{ request.user.first_name|first|upper }}{{ request.user.last_name|first|upper }}
+            {% elif request.user.first_name %}
+                {{ request.user.first_name|slice:":2"|upper }}
+            {% else %}
+                {{ request.user.username|slice:":2"|upper }}
+            {% endif %}
+        </div>
+        
+        <div class="dropdown-menu">
+            <a href="{% url 'profile' %}">
+                <span class="material-symbols-outlined">person</span>
+                My Profile
+            </a>
+            <a href="{% url 'profile' %}#password-section">
+                <span class="material-symbols-outlined">key</span>
+                Change Password
+            </a>
+            
+            <a href="{% url 'logout' %}" style="color: var(--danger-color, #ef4444); border-top: 1px solid var(--border-color); margin-top: 5px; padding-top: 10px;">
+                <span class="material-symbols-outlined">logout</span>
+                Logout
+            </a>
+        </div>
+    </div>
+</header>
