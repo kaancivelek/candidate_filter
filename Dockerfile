@@ -18,8 +18,8 @@ COPY requirements.txt /app/
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Download spacy model (it's already in requirements.txt but we can ensure it's downloaded if needed)
-# RUN python -m spacy download en_core_web_sm
+# Download spaCy model required for CV parsing
+RUN python -m spacy download en_core_web_sm
 
 # Copy project
 COPY . /app/
