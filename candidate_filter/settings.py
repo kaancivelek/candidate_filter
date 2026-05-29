@@ -35,6 +35,16 @@ DEBUG = os.getenv('DEBUG', 'False') == 'True'
 # وضعنا علامة النجمة للسماح لـ Railway بتشغيل الموقع
 ALLOWED_HOSTS = ['*']
 
+# CSRF trusted origins for hosted domains (comma-separated in env)
+# CSRF trusted origins
+_csrf_env = os.getenv('CSRF_TRUSTED_ORIGINS', '')
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in _csrf_env.split(',') if o.strip()]
+
+# Railway'in otomatik domain değişkenini de ekle
+_railway_domain = os.getenv('RAILWAY_PUBLIC_DOMAIN', '')
+if _railway_domain and f"https://{_railway_domain}" not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(f"https://{_railway_domain}")
+
 
 # Application definition
 
