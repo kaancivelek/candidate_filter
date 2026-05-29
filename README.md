@@ -33,7 +33,7 @@ Sistem kütüphanelerinizin karışmaması için sanal ortam kullanmanız zorunl
 **Windows için:**
 ```bash
 python -m venv venv
-venv\Scripts\activate
+	
 ```
 
 **Mac/Linux için:**
@@ -81,7 +81,7 @@ python manage.py createsuperuser
 ### 8. Sunucuyu Başlatın
 Tebrikler! Kurulum bitti. Artık sunucuyu başlatabilirsiniz:
 ```bash
-python manage.py runserver
+py manage.py runserver
 ```
 
 Tarayıcınızı açın ve `http://127.0.0.1:8000` adresine giderek oluşturduğunuz admin hesabı ile sisteme giriş yapın.
