@@ -317,6 +317,32 @@
     </div>
 </div>
 
+{% if pending_count > 0 %}
+<div id="processing-banner" style="
+    background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%);
+    color: white;
+    padding: 14px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 15px rgba(124,58,237,0.3);
+">
+    <span class="material-symbols-outlined" style="font-size: 28px; animation: spin 2s linear infinite;">sync</span>
+    <div>
+        <strong>{{ pending_count }} CV Arka Planda İşleniyor...</strong>
+        <p style="font-size: 0.82rem; margin: 2px 0 0 0; opacity: 0.85;">Yapay zeka analiz ediyor. Tamamlanınca sayfa otomatik güncellenecek.</p>
+    </div>
+    <div style="margin-left: auto; background: rgba(255,255,255,0.15); padding: 6px 14px; border-radius: 20px; font-size: 0.82rem; font-weight: 600;">
+        ⏳ Lütfen bekleyin
+    </div>
+</div>
+<style>
+@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+</style>
+{% endif %}
+
 <div class="top-layout">
     <div class="card info-card">
         <h3><span class="material-symbols-outlined">psychology</span> AI Target Keywords</h3>
@@ -419,15 +445,40 @@
 </div>
 
 <script>
+    // CV yükleme: seçim yapılınca anında formu gönder
     document.getElementById('cv-upload').addEventListener('change', function() {
-        if(this.files.length > 0) {
-            // 1. إخفاء منطقة الرفع وإظهار شريط التحميل (لإعلام المستخدم أن العملية بدأت)
+        if (this.files.length > 0) {
             document.querySelector('.upload-zone').style.display = 'none';
             document.getElementById('ai-status').style.display = 'block';
-            
-            // 2. إرسال النموذج (Form) فعلياً إلى خادم ديجانغو لبدء عمل الذكاء الاصطناعي
             document.getElementById('cv-upload-form').submit();
         }
     });
+
+    // AJAX Polling: Eğer bekleyen CV varsa, tamamlanınca sayfayı yenile
+    {% if pending_count > 0 %}
+    (function pollCvStatus() {
+        var statusUrl = "{% url 'cv_processing_status' job.id %}";
+        var pollInterval = 4000; // 4 saniyede bir kontrol et
+
+        function checkStatus() {
+            fetch(statusUrl)
+                .then(function(resp) { return resp.json(); })
+                .then(function(data) {
+                    if (!data.is_processing) {
+                        // Tüm CV'ler tamamlandı, sayfayı yenile
+                        window.location.reload();
+                    } else {
+                        setTimeout(checkStatus, pollInterval);
+                    }
+                })
+                .catch(function() {
+                    // Bağlantı hatası olursa tekrar dene
+                    setTimeout(checkStatus, pollInterval * 2);
+                });
+        }
+
+        setTimeout(checkStatus, pollInterval);
+    })();
+    {% endif %}
 </script>
 {% endblock %}
