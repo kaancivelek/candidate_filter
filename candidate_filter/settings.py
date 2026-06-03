@@ -163,7 +163,10 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # إعدادات مجلد الميديا (تأكد من وجودها)
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media') # تأكد من استيراد os في أعلى الملف إذا لم يكن موجوداً
+# Railway Volume mount path: /app/media (persistent disk)
+# Yerel geliştirmede: BASE_DIR/media klasörü kullanılır
+MEDIA_ROOT = os.environ.get('MEDIA_ROOT', os.path.join(BASE_DIR, 'media'))
+
 
 # السماح بعرض الملفات داخل iframe (شرط أن تكون في نفس موقعنا 127.0.0.1)
 X_FRAME_OPTIONS = 'SAMEORIGIN'
