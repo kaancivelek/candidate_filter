@@ -1,5 +1,6 @@
 import csv
-from django.http import HttpResponse
+import threading
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -14,8 +15,121 @@ from matching.models import MatchResult
 # استيراد محرك الذكاء الاصطناعي
 from parsing.cv_parser import parse_single_cv
 
+
+def _process_cv_in_background(cv_id, job_id):
+    """
+    Arka planda çalışan CV işleme fonksiyonu.
+    Django ORM'yi thread-safe şekilde kullanmak için her işlemde
+    bağlantıyı açıp kapatır.
+    """
+    from django.db import connection
+    try:
+        # Thread içinde taze DB bağlantısı kullan
+        cv_instance = CV.objects.select_related('candidate', 'job').get(id=cv_id)
+        job = cv_instance.job
+        candidate = cv_instance.candidate
+        skills = list(job.required_skills.all())
+
+        print(f"[ASYNC] CV {cv_id} işleniyor...")
+
+        # NLP ile CV metnini çıkar ve analiz et
+        extracted_data = parse_single_cv(cv_instance.file_path.path)
+
+        # Aday bilgilerini güncelle
+        candidate.full_name = extracted_data.get('name') or f"Candidate #{candidate.id}"
+        candidate.email = extracted_data.get('email')
+        candidate.phone = extracted_data.get('mobile')
+        candidate.save()
+
+        # ParsedData kaydet
+        ParsedData.objects.create(
+            cv=cv_instance,
+            raw_text=extracted_data.get('raw_text', ''),
+            gpa=extracted_data.get('gpa'),
+            degree=extracted_data.get('education', {}).get('degree'),
+            universities=extracted_data.get('education', {}).get('universities', []),
+            workplaces=extracted_data.get('experience', {}).get('workplaces', []),
+            projects=extracted_data.get('projects', {}).get('names', [])
+        )
+
+        # Aday becerilerini kaydet
+        cand_skills_list = extracted_data.get('skills', [])
+        for skill_name in cand_skills_list:
+            CandidateSkill.objects.get_or_create(
+                candidate=candidate,
+                skill_name=skill_name.title()
+            )
+
+        # Puan hesapla
+        job_skills_set = {s.skill_name.lower() for s in skills}
+        cand_skills_set = {s.lower() for s in cand_skills_list}
+
+        if job_skills_set:
+            matched_skills = job_skills_set.intersection(cand_skills_set)
+            skills_score = (len(matched_skills) / len(job_skills_set)) * 100
+        else:
+            matched_skills = set()
+            skills_score = 100.0
+
+        workplaces = extracted_data.get('experience', {}).get('workplaces', [])
+        exp_score = min(100.0, len(workplaces) * 30.0) if job.min_experience > 0 else 100.0
+        edu_score = 100.0 if extracted_data.get('education', {}).get('degree') else 60.0
+        overall_score = (skills_score * 0.40) + (exp_score * 0.25) + (edu_score * 0.15) + (85.0 * 0.20)
+
+        ai_summary = (
+            f"System extracted {len(cand_skills_list)} skills. "
+            f"Candidate matched {len(matched_skills)} out of {len(job_skills_set)} core technical requirements."
+        )
+
+        MatchResult.objects.create(
+            cv=cv_instance,
+            job=job,
+            overall_score=round(overall_score, 1),
+            skills_score=round(skills_score, 1),
+            experience_score=round(exp_score, 1),
+            education_score=round(edu_score, 1),
+            ai_summary=ai_summary
+        )
+
+        cv_instance.status = 'completed'
+        cv_instance.save()
+        print(f"[ASYNC] CV {cv_id} başarıyla tamamlandı.")
+
+    except Exception as e:
+        import traceback
+        print(f"[ASYNC ERROR] CV {cv_id} işlenirken hata:\n{traceback.format_exc()}")
+        try:
+            cv_obj = CV.objects.get(id=cv_id)
+            cv_obj.status = 'failed'
+            cv_obj.save()
+        except Exception:
+            pass
+    finally:
+        # Thread bittikten sonra DB bağlantısını kapat (connection leak'i önle)
+        connection.close()
+
+
+@login_required
+def cv_processing_status(request, job_id):
+    """
+    AJAX endpoint: İş için beklemedeki ve tamamlanan CV sayılarını döner.
+    Frontend'in sayfayı otomatik yenilemesi için polling yapar.
+    """
+    job = get_object_or_404(Job, id=job_id)
+    pending = CV.objects.filter(job=job, status='pending').count()
+    completed = CV.objects.filter(job=job, status='completed').count()
+    failed = CV.objects.filter(job=job, status='failed').count()
+    return JsonResponse({
+        'pending': pending,
+        'completed': completed,
+        'failed': failed,
+        'is_processing': pending > 0,
+    })
+
+
 @login_required
 def job_list(request):
+
     # 1. التقاط متغيرات البحث والفلترة من الرابط (GET Parameters)
     search_query = request.GET.get('search', '')
     status_filter = request.GET.get('status', 'all')
@@ -115,117 +229,53 @@ def job_detail(request, job_id):
         # ب. التحقق مما إذا كان الطلب هو "رفع سير ذاتية"
         elif request.FILES.getlist('cv_files'):
             cv_files = request.FILES.getlist('cv_files')
-            success_count = 0
-            error_count = 0
+            queued_count = 0
 
-        for file in cv_files:
-            try:
-                # استخدام transaction لضمان عدم حفظ بيانات ناقصة في حال حدوث خطأ
-                with transaction.atomic():
-                    # أ. إنشاء مرشح وملف سيرة ذاتية فارغ مبدئياً
-                    candidate = Candidate.objects.create()
-                    cv_instance = CV.objects.create(
-                        candidate=candidate, 
-                        job=job, 
-                        file_path=file, 
-                        status='pending'
-                    )
-
-                    # ب. تمرير مسار الملف الحقيقي لمحرك الذكاء الاصطناعي
-                    # ملاحظة: .path تعطي المسار الكامل على القرص الصلب
-                    extracted_data = parse_single_cv(cv_instance.file_path.path)
-
-                    # ج. تحديث بيانات المرشح الأساسية
-                    candidate.full_name = extracted_data.get('name') or f"Candidate #{candidate.id}"
-                    candidate.email = extracted_data.get('email')
-                    candidate.phone = extracted_data.get('mobile')
-                    candidate.save()
-
-                    # د. حفظ البيانات المستخرجة في جدول ParsedData
-                    ParsedData.objects.create(
-                        cv=cv_instance,
-                        raw_text=extracted_data.get('raw_text', ''),
-                        gpa=extracted_data.get('gpa'),
-                        degree=extracted_data.get('education', {}).get('degree'),
-                        universities=extracted_data.get('education', {}).get('universities', []),
-                        workplaces=extracted_data.get('experience', {}).get('workplaces', []),
-                        projects=extracted_data.get('projects', {}).get('names', [])
-                    )
-
-                    # هـ. حفظ مهارات المرشح
-                    cand_skills_list = extracted_data.get('skills', [])
-                    for skill_name in cand_skills_list:
-                        CandidateSkill.objects.get_or_create(
-                            candidate=candidate, 
-                            skill_name=skill_name.title()
+            for file in cv_files:
+                try:
+                    # 1. احفظ الملف وأنشئ سجلات فارغة فوراً (لا NLP هنا)
+                    with transaction.atomic():
+                        candidate = Candidate.objects.create()
+                        cv_instance = CV.objects.create(
+                            candidate=candidate,
+                            job=job,
+                            file_path=file,
+                            status='pending'
                         )
+                    queued_count += 1
 
-                    # و. خوارزمية حساب المطابقة (Match Scoring Engine)
-                    job_skills_set = {s.skill_name.lower() for s in skills}
-                    cand_skills_set = {s.lower() for s in cand_skills_list}
-                    
-                    # حساب درجة المهارات (40%)
-                    if job_skills_set:
-                        matched_skills = job_skills_set.intersection(cand_skills_set)
-                        skills_score = (len(matched_skills) / len(job_skills_set)) * 100
-                    else:
-                        skills_score = 100.0
-
-                    # حساب درجة الخبرة (25%) تقريبية بناءً على عدد أماكن العمل
-                    workplaces = extracted_data.get('experience', {}).get('workplaces', [])
-                    exp_score = min(100.0, len(workplaces) * 30.0) if job.min_experience > 0 else 100.0
-
-                    # حساب درجة التعليم (15%)
-                    edu_score = 100.0 if extracted_data.get('education', {}).get('degree') else 60.0
-
-                    # الدرجة النهائية
-                    overall_score = (skills_score * 0.40) + (exp_score * 0.25) + (edu_score * 0.15) + (85.0 * 0.20) # 20% ثابتة حالياً للمشاريع واللغات
-
-                    ai_summary = f"System extracted {len(cand_skills_list)} skills. Candidate matched {len(matched_skills) if job_skills_set else 0} out of {len(job_skills_set)} core technical requirements."
-
-                    MatchResult.objects.create(
-                        cv=cv_instance,
-                        job=job,
-                        overall_score=round(overall_score, 1),
-                        skills_score=round(skills_score, 1),
-                        experience_score=round(exp_score, 1),
-                        education_score=round(edu_score, 1),
-                        ai_summary=ai_summary
+                    # 2. ابدأ معالجة هذا الـ CV في thread منفصل (لا تنتظر)
+                    t = threading.Thread(
+                        target=_process_cv_in_background,
+                        args=(cv_instance.id, job.id),
+                        daemon=True
                     )
+                    t.start()
 
-                    # تغيير حالة الملف إلى مكتمل
-                    cv_instance.status = 'completed'
-                    cv_instance.save()
-                    
-                    success_count += 1
+                except Exception as e:
+                    print(f"[SYSTEM ERROR] CV kayıt edilemedi: {e}")
 
-            except Exception as e:
-                error_count += 1
-                print(f"[SYSTEM ERROR] Failed to process CV: {e}")
-                # في حال حدوث خطأ، نقوم بتحديث حالة الـ CV إلى failed
-                if 'cv_instance' in locals():
-                    cv_instance.status = 'failed'
-                    cv_instance.save()
+            if queued_count > 0:
+                messages.success(
+                    request,
+                    f"{queued_count} CV başarıyla kuyruğa alındı. İşlem arka planda devam ediyor, sayfayı yenileyerek sonuçları görebilirsiniz."
+                )
 
-        # إرسال تنبيه للمستخدم بنتيجة العملية
-        if success_count > 0:
-            messages.success(request, f"Successfully processed {success_count} CV(s) through the AI Engine.")
-        if error_count > 0:
-            messages.error(request, f"Failed to process {error_count} CV(s). Please ensure they are valid PDF/DOCX files.")
-            
-        # إعادة توجيه لنفس الصفحة لتحديث الجدول
         return redirect('job_detail', job_id=job.id)
 
     # 3. جلب نتائج الذكاء الاصطناعي (المرشحين) لهذه الوظيفة، مرتبة من الأعلى للأقل (للـ GET Request)
     matches = MatchResult.objects.filter(job=job).select_related('cv__candidate').order_by('-overall_score')
-    
+    pending_count = CV.objects.filter(job=job, status='pending').count()
+
     context = {
         'job': job,
         'skills': skills,
         'matches': matches,
+        'pending_count': pending_count,
     }
     
     return render(request, 'jobs/job_detail.html', context)
+
 
 @login_required
 def export_candidates(request, job_id):
