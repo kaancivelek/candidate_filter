@@ -14,7 +14,11 @@ from matching.models import MatchResult
 
 # استيراد محرك الذكاء الاصطناعي
 from parsing.cv_parser import parse_single_cv
+import threading
 
+# Global lock to prevent concurrent spaCy loading and SQLite database locks
+# when multiple CVs are uploaded at once.
+cv_processing_lock = threading.Lock()
 
 def _process_cv_in_background(cv_id, job_id):
     """
@@ -23,90 +27,94 @@ def _process_cv_in_background(cv_id, job_id):
     bağlantıyı açıp kapatır.
     """
     from django.db import connection
-    try:
-        # Thread içinde taze DB bağlantısı kullan
-        cv_instance = CV.objects.select_related('candidate', 'job').get(id=cv_id)
-        job = cv_instance.job
-        candidate = cv_instance.candidate
-        skills = list(job.required_skills.all())
+    
+    # Process one CV at a time to prevent high memory usage (OCR + spaCy)
+    # and SQLite "database is locked" errors.
+    with cv_processing_lock:
+        try:
+            # Thread içinde taze DB bağlantısı kullan
+            cv_instance = CV.objects.select_related('candidate', 'job').get(id=cv_id)
+            job = cv_instance.job
+            candidate = cv_instance.candidate
+            skills = list(job.required_skills.all())
 
-        print(f"[ASYNC] CV {cv_id} işleniyor...")
+            print(f"[ASYNC] CV {cv_id} işleniyor...")
 
-        # NLP ile CV metnini çıkar ve analiz et
-        extracted_data = parse_single_cv(cv_instance.file_path.path)
+            # NLP ile CV metnini çıkar ve analiz et
+            extracted_data = parse_single_cv(cv_instance.file_path.path)
 
-        # Aday bilgilerini güncelle
-        candidate.full_name = extracted_data.get('name') or f"Candidate #{candidate.id}"
-        candidate.email = extracted_data.get('email')
-        candidate.phone = extracted_data.get('mobile')
-        candidate.save()
+            # Aday bilgilerini güncelle
+            candidate.full_name = extracted_data.get('name') or f"Candidate #{candidate.id}"
+            candidate.email = extracted_data.get('email')
+            candidate.phone = extracted_data.get('mobile')
+            candidate.save()
 
-        # ParsedData kaydet
-        ParsedData.objects.create(
-            cv=cv_instance,
-            raw_text=extracted_data.get('raw_text', ''),
-            gpa=extracted_data.get('gpa'),
-            degree=extracted_data.get('education', {}).get('degree'),
-            universities=extracted_data.get('education', {}).get('universities', []),
-            workplaces=extracted_data.get('experience', {}).get('workplaces', []),
-            projects=extracted_data.get('projects', {}).get('names', [])
-        )
-
-        # Aday becerilerini kaydet
-        cand_skills_list = extracted_data.get('skills', [])
-        for skill_name in cand_skills_list:
-            CandidateSkill.objects.get_or_create(
-                candidate=candidate,
-                skill_name=skill_name.title()
+            # ParsedData kaydet
+            ParsedData.objects.create(
+                cv=cv_instance,
+                raw_text=extracted_data.get('raw_text', ''),
+                gpa=extracted_data.get('gpa'),
+                degree=extracted_data.get('education', {}).get('degree'),
+                universities=extracted_data.get('education', {}).get('universities', []),
+                workplaces=extracted_data.get('experience', {}).get('workplaces', []),
+                projects=extracted_data.get('projects', {}).get('names', [])
             )
 
-        # Puan hesapla
-        job_skills_set = {s.skill_name.lower() for s in skills}
-        cand_skills_set = {s.lower() for s in cand_skills_list}
+            # Aday becerilerini kaydet
+            cand_skills_list = extracted_data.get('skills', [])
+            for skill_name in cand_skills_list:
+                CandidateSkill.objects.get_or_create(
+                    candidate=candidate,
+                    skill_name=skill_name.title()
+                )
 
-        if job_skills_set:
-            matched_skills = job_skills_set.intersection(cand_skills_set)
-            skills_score = (len(matched_skills) / len(job_skills_set)) * 100
-        else:
-            matched_skills = set()
-            skills_score = 100.0
+            # Puan hesapla
+            job_skills_set = {s.skill_name.lower() for s in skills}
+            cand_skills_set = {s.lower() for s in cand_skills_list}
 
-        workplaces = extracted_data.get('experience', {}).get('workplaces', [])
-        exp_score = min(100.0, len(workplaces) * 30.0) if job.min_experience > 0 else 100.0
-        edu_score = 100.0 if extracted_data.get('education', {}).get('degree') else 60.0
-        overall_score = (skills_score * 0.40) + (exp_score * 0.25) + (edu_score * 0.15) + (85.0 * 0.20)
+            if job_skills_set:
+                matched_skills = job_skills_set.intersection(cand_skills_set)
+                skills_score = (len(matched_skills) / len(job_skills_set)) * 100
+            else:
+                matched_skills = set()
+                skills_score = 100.0
 
-        ai_summary = (
-            f"System extracted {len(cand_skills_list)} skills. "
-            f"Candidate matched {len(matched_skills)} out of {len(job_skills_set)} core technical requirements."
-        )
+            workplaces = extracted_data.get('experience', {}).get('workplaces', [])
+            exp_score = min(100.0, len(workplaces) * 30.0) if job.min_experience > 0 else 100.0
+            edu_score = 100.0 if extracted_data.get('education', {}).get('degree') else 60.0
+            overall_score = (skills_score * 0.40) + (exp_score * 0.25) + (edu_score * 0.15) + (85.0 * 0.20)
 
-        MatchResult.objects.create(
-            cv=cv_instance,
-            job=job,
-            overall_score=round(overall_score, 1),
-            skills_score=round(skills_score, 1),
-            experience_score=round(exp_score, 1),
-            education_score=round(edu_score, 1),
-            ai_summary=ai_summary
-        )
+            ai_summary = (
+                f"System extracted {len(cand_skills_list)} skills. "
+                f"Candidate matched {len(matched_skills)} out of {len(job_skills_set)} core technical requirements."
+            )
 
-        cv_instance.status = 'completed'
-        cv_instance.save()
-        print(f"[ASYNC] CV {cv_id} başarıyla tamamlandı.")
+            MatchResult.objects.create(
+                cv=cv_instance,
+                job=job,
+                overall_score=round(overall_score, 1),
+                skills_score=round(skills_score, 1),
+                experience_score=round(exp_score, 1),
+                education_score=round(edu_score, 1),
+                ai_summary=ai_summary
+            )
 
-    except Exception as e:
-        import traceback
-        print(f"[ASYNC ERROR] CV {cv_id} işlenirken hata:\n{traceback.format_exc()}")
-        try:
-            cv_obj = CV.objects.get(id=cv_id)
-            cv_obj.status = 'failed'
-            cv_obj.save()
-        except Exception:
-            pass
-    finally:
-        # Thread bittikten sonra DB bağlantısını kapat (connection leak'i önle)
-        connection.close()
+            cv_instance.status = 'completed'
+            cv_instance.save()
+            print(f"[ASYNC] CV {cv_id} başarıyla tamamlandı.")
+
+        except Exception as e:
+            import traceback
+            print(f"[ASYNC ERROR] CV {cv_id} işlenirken hata:\n{traceback.format_exc()}")
+            try:
+                cv_obj = CV.objects.get(id=cv_id)
+                cv_obj.status = 'failed'
+                cv_obj.save()
+            except Exception:
+                pass
+        finally:
+            # Thread bittikten sonra DB bağlantısını kapat (connection leak'i önle)
+            connection.close()
 
 
 @login_required
